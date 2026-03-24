@@ -1,0 +1,6 @@
+{
+  "name": "mff-dashboard",
+  "version": "1.0.0",
+  "scripts": { "start": "node mff_server.js" },
+  "dependencies": { "express": "^4.18.0" }
+}
