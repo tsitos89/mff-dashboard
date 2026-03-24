@@ -136,7 +136,7 @@ function computeAnalytics(variants){
     marginBuckets:buckets
   };
 }
-function fmt(n){return '&#8364;'+parseFloat(n).toLocaleString('el-GR',{minimumFractionDigits:0,maximumFractionDigits:0});}
+function fmt(n){return '€'+parseFloat(n).toLocaleString('el-GR',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function fmtD(n){return parseFloat(n).toFixed(1);}
 async function loadData(force){
   document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div>Φορτώνω δεδομένα από Shopify...</div>';
