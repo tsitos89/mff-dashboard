@@ -160,12 +160,14 @@ app.post('/api/discount', async (req, res) => {
   try {
     const { category, discount } = req.body;
     const data = await getData();
-    const catVariants = data.variants.filter(v => v.type === category && v.qty > 0 && v.hasCost);
+    // Χρησιμοποίησε ΟΛΑ τα variants με cost (ανεξάρτητα από filter)
+    const catVariants = data.variants.filter(v => v.type === category && v.qty > 0 && v.hasCost && v.price > 0);
     const d = parseFloat(discount) / 100;
     const currentRevenue = catVariants.reduce((s,v)=>s+v.stockValueRetail,0);
-    const currentProfit  = catVariants.reduce((s,v)=>s+(v.price-v.cost)*v.qty,0);
-    const newRevenue     = catVariants.reduce((s,v)=>s+(v.price*(1-d))*v.qty,0);
-    const newProfit      = catVariants.reduce((s,v)=>s+(v.price*(1-d)-v.cost)*v.qty,0);
+    const currentProfit  = catVariants.reduce((s,v)=>s+(v.price-v.cost)*Math.max(v.qty,0),0);
+    const newRevenue     = catVariants.reduce((s,v)=>s+(v.price*(1-d))*Math.max(v.qty,0),0);
+    const newProfit      = catVariants.reduce((s,v)=>s+(v.price*(1-d)-v.cost)*Math.max(v.qty,0),0);
+    console.log('Discount calc:', category, discount+'%', 'variants:', catVariants.length, 'revenue:', currentRevenue);
     res.json({ currentRevenue, currentProfit, newRevenue, newProfit });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
