@@ -229,77 +229,194 @@ app.post('/api/discount', async (req, res) => {
 
 app.post('/api/ai', async (req, res) => {
   try {
-    if (!process.env.OPENROUTER_API_KEY) return res.status(400).json({ error: 'GEMINI_API_KEY δεν έχει οριστεί' });
+    if (!process.env.OPENROUTER_API_KEY) return res.status(400).json({ error: 'No API key' });
     const { question } = req.body;
     const data = await getData();
-    const { analytics } = data;
+    const { analytics, sales } = data;
 
-    const sales = data.sales || {};
-    const context = [
-      'Είσαι σύμβουλος για το eshop MYFASHIONFRUIT (myfashionfruit.com) - γυναικείο eshop με ρούχα, κοσμήματα, αξεσουάρ.',
-      '',
-      'LIVE ΔΕΔΟΜΕΝΑ SHOPIFY:',
-      'Σύνολο variants: ' + analytics.total,
-      sales.totalRevenue30 ? 'Έσοδα τελευταίων 30 ημερών: ' + sales.totalRevenue30.toFixed(0) + ' EUR' : '',
-      sales.orderCount30 ? 'Παραγγελίες 30 ημερών: ' + sales.orderCount30 : '',
-      sales.avgOrderValue30 ? 'Μέσο καλάθι: ' + sales.avgOrderValue30.toFixed(0) + ' EUR' : '',
-      sales.newCustomers30 ? 'Νέοι πελάτες 30 ημερών: ' + sales.newCustomers30 : '',
-      sales.returningCustomers30 ? 'Επαναλαμβανόμενοι πελάτες 30 ημερών: ' + sales.returningCustomers30 : '',
-      sales.topSelling ? 'Top πωλούμενα 30 ημερών: ' + (sales.topSelling||[]).map(p=>p.title+' ('+p.qty+' τεμ)').join(', ') : '',
-      'Variants με cost: ' + analytics.withCost + ' (' + analytics.coveragePct + '%)',
-      'Stock (τεμάχια): ' + analytics.totalStockQty,
-      'Αξία stock κόστος: ' + analytics.totalStockCost.toFixed(0) + ' EUR',
-      'Αξία stock πώληση: ' + analytics.totalStockRetail.toFixed(0) + ' EUR',
-      'Μέσο margin: ' + analytics.avgMargin.toFixed(1) + '%',
-      '',
-      'ΑΝΑ ΚΑΤΗΓΟΡΙΑ:',
-      ...analytics.categories.map(c => c.name + ': ' + c.stockQty + ' τεμ, κόστος ' + c.stockCost.toFixed(0) + ' EUR, πώληση ' + c.stockRetail.toFixed(0) + ' EUR, margin ' + c.avgMargin.toFixed(1) + '%'),
-      '',
-      'TOP 10 ΠΡΟΙΟΝΤΑ (αξία stock):',
-      ...analytics.topByStockValue.slice(0,10).map(p => p.product + ': ' + p.totalQty + ' τεμ, ' + p.totalRetail.toFixed(0) + ' EUR, margin ' + p.avgMargin.toFixed(1) + '%'),
-      '',
-      'TOP 10 MARGIN:',
-      ...analytics.topByMargin.slice(0,10).map(p => p.product + ': ' + p.avgMargin.toFixed(1) + '%, αξία ' + p.totalRetail.toFixed(0) + ' EUR'),
-      '',
-      'Απάντα στα ελληνικά με πρακτικές συμβουλές και νούμερα.',
-      '',
-      'Ερώτηση: ' + question
-    ].join('\n');
-
-    // OpenRouter API — αλλαξε το model εδω αν θες:
-    // 'google/gemini-2.0-flash-exp:free'  → Gemini 2.0 Flash (δωρεαν)
-    // 'meta-llama/llama-3.3-70b-instruct' → Llama 3.3 70B
-    // 'anthropic/claude-3.5-haiku'        → Claude 3.5 Haiku (πιο έξυπνο)
-    const MODEL = 'minimax/minimax-m2.5';
-
-    console.log('AI request:', question.substring(0,50), 'model:', MODEL);
-    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
-        'HTTP-Referer': 'https://mff-dashboard.onrender.com',
-        'X-Title': 'MFF Intelligence Dashboard'
+    // Shopify functions the AI can call
+    const tools = [
+      {
+        type: 'function',
+        function: {
+          name: 'get_orders_by_date',
+          description: 'Get orders for a specific date range. Use for questions like yesterday, this week, last month, specific dates.',
+          parameters: {
+            type: 'object',
+            properties: {
+              from_date: { type: 'string', description: 'Start date ISO format e.g. 2026-03-24T00:00:00Z' },
+              to_date: { type: 'string', description: 'End date ISO format e.g. 2026-03-24T23:59:59Z' }
+            },
+            required: ['from_date', 'to_date']
+          }
+        }
       },
-      body: JSON.stringify({
-        model: MODEL,
-        messages: [{ role: 'user', content: context }],
-        temperature: 0.7,
-        max_tokens: 1500
-      })
-    });
-    const gd = await orRes.json();
-    console.log('AI response status:', orRes.status, 'keys:', Object.keys(gd));
-    if (gd.error) console.log('AI error:', JSON.stringify(gd.error));
-    // Παίρνε μόνο το τελικό κείμενο, όχι το reasoning
-    const choice = gd.choices?.[0];
-    const answer = choice?.message?.content || 
-                   choice?.message?.reasoning ||
-                   gd.error?.message ||
-                   'Δεν ήρθε απάντηση';
-    res.json({ answer });
-  } catch(e) { res.status(500).json({ error: e.message }); }
+      {
+        type: 'function',
+        function: {
+          name: 'get_product_sales',
+          description: 'Get sales per product for a date range.',
+          parameters: {
+            type: 'object',
+            properties: {
+              from_date: { type: 'string' },
+              to_date: { type: 'string' }
+            },
+            required: ['from_date', 'to_date']
+          }
+        }
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'get_inventory_status',
+          description: 'Get inventory status - low stock, overstock, out of stock.',
+          parameters: {
+            type: 'object',
+            properties: {
+              category: { type: 'string', description: 'Category: ΡΟΥΧΑ, ΚΟΣΜΗΜΑΤΑ, ΑΞΕΣΟΥΑΡ or ALL' },
+              low_stock_threshold: { type: 'number', description: 'Low stock threshold default 5' }
+            }
+          }
+        }
+      }
+    ];
+
+    async function executeFunction(name, args) {
+      if (name === 'get_orders_by_date') {
+        const d = await gql(`
+          query {
+            orders(first: 100, query: "created_at:>${args.from_date} created_at:<${args.to_date} financial_status:paid", sortKey: CREATED_AT, reverse: true) {
+              nodes {
+                name createdAt
+                totalPriceSet { shopMoney { amount } }
+                customer { firstName lastName numberOfOrders }
+                lineItems(first: 10) { nodes { title quantity } }
+              }
+            }
+          }
+        `);
+        const orders = d.data?.orders?.nodes || [];
+        const total = orders.reduce((s,o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount||0), 0);
+        return {
+          order_count: orders.length,
+          total_revenue: total.toFixed(2) + ' EUR',
+          avg_order: orders.length > 0 ? (total/orders.length).toFixed(2) + ' EUR' : '0',
+          orders: orders.slice(0,20).map(o => ({
+            name: o.name,
+            date: o.createdAt.split('T')[0],
+            amount: parseFloat(o.totalPriceSet?.shopMoney?.amount||0).toFixed(2) + ' EUR',
+            customer: o.customer ? (o.customer.firstName + ' ' + o.customer.lastName) : 'Guest',
+            items: (o.lineItems?.nodes||[]).map(li => li.title + ' x' + li.quantity).join(', ')
+          }))
+        };
+      }
+
+      if (name === 'get_product_sales') {
+        const d = await gql(`
+          query {
+            orders(first: 250, query: "created_at:>${args.from_date} created_at:<${args.to_date} financial_status:paid") {
+              nodes {
+                lineItems(first: 20) {
+                  nodes { title quantity originalUnitPriceSet { shopMoney { amount } } }
+                }
+              }
+            }
+          }
+        `);
+        const pm = {};
+        (d.data?.orders?.nodes||[]).forEach(o => {
+          (o.lineItems?.nodes||[]).forEach(li => {
+            if (!pm[li.title]) pm[li.title] = { title: li.title, qty: 0, revenue: 0 };
+            pm[li.title].qty += li.quantity;
+            pm[li.title].revenue += parseFloat(li.originalUnitPriceSet?.shopMoney?.amount||0) * li.quantity;
+          });
+        });
+        return Object.values(pm).sort((a,b) => b.qty - a.qty).slice(0,20).map(p => ({
+          product: p.title, qty_sold: p.qty, revenue: p.revenue.toFixed(2) + ' EUR'
+        }));
+      }
+
+      if (name === 'get_inventory_status') {
+        const cat = args.category || 'ALL';
+        const thr = args.low_stock_threshold || 5;
+        let variants = data.variants;
+        if (cat !== 'ALL') variants = variants.filter(v => v.type === cat);
+        return {
+          low_stock: variants.filter(v => v.qty > 0 && v.qty <= thr).sort((a,b) => a.qty-b.qty).slice(0,10).map(v => ({ product: v.product, qty: v.qty, price: v.price })),
+          out_of_stock: variants.filter(v => v.qty <= 0).length,
+          over_stock: variants.filter(v => v.qty > 50).sort((a,b) => b.qty-a.qty).slice(0,10).map(v => ({ product: v.product, qty: v.qty })),
+          total: variants.length
+        };
+      }
+      return { error: 'Unknown: ' + name };
+    }
+
+    const today = new Date();
+    const yesterday = new Date(today - 86400000);
+
+    const systemPrompt = [
+      'Είσαι σύμβουλος για το eshop MYFASHIONFRUIT. Απαντάς ΠΑΝΤΑ στα ελληνικά με markdown.',
+      'Σήμερα: ' + today.toISOString().split('T')[0] + ' (UTC+2). Χθες: ' + yesterday.toISOString().split('T')[0],
+      'Stock: ' + analytics.total + ' variants, αξία πώλησης ' + analytics.totalStockRetail.toFixed(0) + ' EUR, μέσο margin ' + analytics.avgMargin.toFixed(1) + '%',
+      'Πωλήσεις 30 ημερών: ' + (sales.orderCount30||0) + ' παραγγελίες, ' + (sales.totalRevenue30||0).toFixed(0) + ' EUR, μέσο καλάθι ' + (sales.avgOrderValue30||0).toFixed(0) + ' EUR',
+      'Για αναλυτικά δεδομένα (ημερήσια, εβδομαδιαία, ανά προϊόν) χρησιμοποίησε τα functions.'
+    ].join(' | ');
+
+    const messages = [{ role: 'user', content: question }];
+    let finalAnswer = '';
+    let rounds = 3;
+
+    while (rounds > 0) {
+      rounds--;
+      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
+          'HTTP-Referer': 'https://mff-dashboard.onrender.com',
+          'X-Title': 'MFF Intelligence'
+        },
+        body: JSON.stringify({
+          model: 'minimax/minimax-m2.5',
+          messages: [{ role: 'system', content: systemPrompt }, ...messages],
+          tools,
+          tool_choice: 'auto',
+          temperature: 0.3,
+          max_tokens: 2000
+        })
+      });
+
+      const gd = await resp.json();
+      if (gd.error) { finalAnswer = 'Σφάλμα: ' + (gd.error.message||JSON.stringify(gd.error)); break; }
+
+      const choice = gd.choices?.[0];
+      const msg = choice?.message;
+      console.log('AI finish_reason:', choice?.finish_reason, 'tool_calls:', msg?.tool_calls?.length || 0);
+
+      if (msg?.tool_calls && msg.tool_calls.length > 0) {
+        messages.push({ role: 'assistant', content: msg.content || null, tool_calls: msg.tool_calls });
+        for (const tc of msg.tool_calls) {
+          const args = JSON.parse(tc.function.arguments || '{}');
+          console.log('Calling:', tc.function.name, JSON.stringify(args));
+          const result = await executeFunction(tc.function.name, args);
+          messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
+        }
+        continue;
+      }
+
+      finalAnswer = msg?.content || 'Δεν ήρθε απάντηση';
+      break;
+    }
+
+    res.json({ answer: finalAnswer });
+  } catch(e) {
+    console.log('AI error:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
+
+;
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'mff_dashboard.html'));
