@@ -140,12 +140,67 @@ function computeAnalytics(variants) {
 
 let dataCache = null, cacheTime = 0;
 
+async function fetchSalesData(token) {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const data = await gql(`
+      query {
+        orders(first: 250, query: "created_at:>${thirtyDaysAgo} financial_status:paid", sortKey: CREATED_AT, reverse: true) {
+          nodes {
+            id name createdAt totalPriceSet { shopMoney { amount } }
+            customer { id numberOfOrders }
+            lineItems(first: 50) {
+              nodes { title quantity variant { sku product { title productType tags } } }
+            }
+          }
+        }
+      }
+    `);
+
+    const orders = data.data?.orders?.nodes || [];
+    const totalRevenue30 = orders.reduce((s, o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount || 0), 0);
+    const orderCount30 = orders.length;
+    const avgOrderValue30 = orderCount30 > 0 ? totalRevenue30 / orderCount30 : 0;
+
+    // Customers
+    const customerIds = new Set();
+    let newCustomers30 = 0, returningCustomers30 = 0;
+    orders.forEach(o => {
+      if (o.customer) {
+        customerIds.add(o.customer.id);
+        if (o.customer.numberOfOrders <= 1) newCustomers30++;
+        else returningCustomers30++;
+      }
+    });
+
+    // Top selling products
+    const productSales = {};
+    orders.forEach(o => {
+      (o.lineItems?.nodes || []).forEach(li => {
+        const title = li.variant?.product?.title || li.title;
+        if (!productSales[title]) productSales[title] = { title, qty: 0, revenue: 0 };
+        productSales[title].qty += li.quantity;
+      });
+    });
+
+    const topSelling = Object.values(productSales)
+      .sort((a, b) => b.qty - a.qty)
+      .slice(0, 10);
+
+    console.log('Sales fetched:', orderCount30, 'orders,', totalRevenue30.toFixed(0), 'EUR');
+    return { totalRevenue30, orderCount30, avgOrderValue30, newCustomers30, returningCustomers30, topSelling };
+  } catch(e) {
+    console.log('Sales fetch error:', e.message);
+    return {};
+  }
+}
+
 async function getData(forceRefresh = false) {
   if (!forceRefresh && dataCache && Date.now() - cacheTime < 5 * 60 * 1000) return dataCache;
   console.log('Fetching from Shopify...');
-  const variants  = await fetchAllVariants();
+  const [variants, sales] = await Promise.all([fetchAllVariants(), fetchSalesData()]);
   const analytics = computeAnalytics(variants);
-  dataCache = { variants, analytics, fetchedAt: new Date().toISOString() };
+  dataCache = { variants, analytics, sales, fetchedAt: new Date().toISOString() };
   cacheTime = Date.now();
   return dataCache;
 }
@@ -179,11 +234,18 @@ app.post('/api/ai', async (req, res) => {
     const data = await getData();
     const { analytics } = data;
 
+    const sales = data.sales || {};
     const context = [
       'Είσαι σύμβουλος για το eshop MYFASHIONFRUIT (myfashionfruit.com) - γυναικείο eshop με ρούχα, κοσμήματα, αξεσουάρ.',
       '',
       'LIVE ΔΕΔΟΜΕΝΑ SHOPIFY:',
       'Σύνολο variants: ' + analytics.total,
+      sales.totalRevenue30 ? 'Έσοδα τελευταίων 30 ημερών: ' + sales.totalRevenue30.toFixed(0) + ' EUR' : '',
+      sales.orderCount30 ? 'Παραγγελίες 30 ημερών: ' + sales.orderCount30 : '',
+      sales.avgOrderValue30 ? 'Μέσο καλάθι: ' + sales.avgOrderValue30.toFixed(0) + ' EUR' : '',
+      sales.newCustomers30 ? 'Νέοι πελάτες 30 ημερών: ' + sales.newCustomers30 : '',
+      sales.returningCustomers30 ? 'Επαναλαμβανόμενοι πελάτες 30 ημερών: ' + sales.returningCustomers30 : '',
+      sales.topSelling ? 'Top πωλούμενα 30 ημερών: ' + (sales.topSelling||[]).map(p=>p.title+' ('+p.qty+' τεμ)').join(', ') : '',
       'Variants με cost: ' + analytics.withCost + ' (' + analytics.coveragePct + '%)',
       'Stock (τεμάχια): ' + analytics.totalStockQty,
       'Αξία stock κόστος: ' + analytics.totalStockCost.toFixed(0) + ' EUR',

@@ -6,121 +6,218 @@
 <title>MFF Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@300;400&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#22222f;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--accent:#c9a96e;--accent2:#7c6fff;--accent3:#ff6b8a;--text:#e8e8f0;--text2:#8888aa;--text3:#555566;--green:#4ade80;--red:#f87171;--yellow:#fbbf24}
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:14px}
-.header{padding:18px 32px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:rgba(10,10,15,0.97);z-index:100;backdrop-filter:blur(20px)}
-.logo{font-family:'Playfair Display',serif;font-size:20px;color:var(--accent);letter-spacing:0.05em}
-.logo em{font-style:italic;color:var(--text2);font-size:11px;display:block;font-family:'DM Sans',sans-serif;letter-spacing:0.15em;text-transform:uppercase;margin-top:2px}
-.header-right{display:flex;align-items:center;gap:12px}
-.refresh-btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;transition:all 0.2s}
-.refresh-btn:hover{border-color:var(--accent);color:var(--accent)}
-.fetch-time{color:var(--text3);font-family:'DM Mono',monospace;font-size:11px}
-.main{padding:28px 32px;max-width:1400px;margin:0 auto}
-.section-title{font-family:'Playfair Display',serif;font-size:15px;color:var(--accent);margin-bottom:16px;display:flex;align-items:center;gap:10px}
-.section-title::after{content:'';flex:1;height:1px;background:var(--border)}
-.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;margin-bottom:28px}
-.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden;transition:border-color 0.2s}
-.kpi:hover{border-color:var(--border2)}
-.kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--kpi-color,var(--accent))}
-.kpi-label{color:var(--text2);font-size:11px;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:8px}
-.kpi-value{font-family:'Playfair Display',serif;font-size:26px;color:var(--text);line-height:1}
-.kpi-value.green{color:var(--green)}
-.kpi-sub{color:var(--text3);font-family:'DM Mono',monospace;font-size:11px;margin-top:6px}
-.cat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:28px}
-.cat-card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all 0.2s}
-.cat-card:hover,.cat-card.active{border-color:var(--accent);background:var(--bg3)}
-.cat-name{font-family:'Playfair Display',serif;font-size:18px;margin-bottom:12px;color:var(--accent)}
-.cat-stat{display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px}
-.cat-stat-label{color:var(--text2)}
-.cat-stat-value{font-family:'DM Mono',monospace}
-.progress{height:3px;background:var(--bg4);border-radius:2px;margin-top:10px;overflow:hidden}
-.progress-bar{height:3px;background:var(--accent);border-radius:2px;transition:width 0.8s ease}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px}
-.card-title{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px}
-.chart-wrap{position:relative;height:220px}
-.tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--bg2);padding:4px;border-radius:10px;width:fit-content;border:1px solid var(--border)}
-.tab{padding:7px 16px;border-radius:7px;font-size:13px;cursor:pointer;color:var(--text2);transition:all 0.2s}
-.tab.active{background:var(--bg4);color:var(--text)}
-.table{width:100%;border-collapse:collapse}
-.table th{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;font-weight:500;padding:6px 12px;text-align:left;border-bottom:1px solid var(--border)}
-.table td{padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px}
-.table tr:last-child td{border-bottom:none}
-.table tr:hover td{background:rgba(255,255,255,0.02)}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-family:'DM Mono',monospace}
-.badge-green{background:rgba(74,222,128,0.1);color:var(--green)}
-.badge-yellow{background:rgba(251,191,36,0.1);color:var(--yellow)}
-.badge-red{background:rgba(248,113,113,0.1);color:var(--red)}
-.badge-blue{background:rgba(124,111,255,0.1);color:var(--accent2)}
-.badge-accent{background:rgba(201,169,110,0.1);color:var(--accent)}
-.simulator{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px}
-.sim-controls{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:20px}
-.sim-group{display:flex;flex-direction:column;gap:6px}
-.sim-group label{color:var(--text2);font-size:12px;text-transform:uppercase;letter-spacing:0.08em}
-select,input[type=range]{background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:8px 12px;border-radius:8px;font-size:13px;cursor:pointer;outline:none}
-input[type=range]{padding:4px 8px;width:160px;accent-color:var(--accent)}
-.sim-btn{background:var(--accent);color:#000;border:none;padding:9px 22px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;transition:opacity 0.2s}
-.sim-btn:hover{opacity:0.85}
-.sim-results{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.sim-result{background:var(--bg3);border-radius:8px;padding:14px;border:1px solid var(--border)}
-.sim-result-label{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px}
-.sim-result-value{font-family:'DM Mono',monospace;font-size:18px}
-.ai-section{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px}
-.ai-header{display:flex;align-items:center;gap:10px;margin-bottom:16px}
-.ai-icon{width:30px;height:30px;background:linear-gradient(135deg,var(--accent2),var(--accent));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
-.ai-title{font-family:'Playfair Display',serif;font-size:16px}
-.ai-subtitle{color:var(--text3);font-size:11px;margin-left:auto;font-family:'DM Mono',monospace}
-.quick-questions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
-.quick-q{background:var(--bg3);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
-.quick-q:hover{border-color:var(--accent2);color:var(--accent2)}
-.ai-input-row{display:flex;gap:10px}
-.ai-input{flex:1;background:var(--bg3);border:1px solid var(--border2);color:var(--text);padding:10px 16px;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;outline:none;transition:border-color 0.2s}
-.ai-input:focus{border-color:var(--accent2)}
-.ai-input::placeholder{color:var(--text3)}
-.ai-send{background:var(--accent2);color:#fff;border:none;padding:10px 22px;border-radius:10px;cursor:pointer;font-weight:600;font-size:13px;transition:opacity 0.2s;white-space:nowrap}
-.ai-send:hover{opacity:0.85}
-.ai-send:disabled{opacity:0.4;cursor:not-allowed}
-.ai-messages{margin-top:16px;display:flex;flex-direction:column;gap:12px;max-height:450px;overflow-y:auto}
-.ai-msg{padding:14px 16px;border-radius:10px;font-size:13px;line-height:1.75;white-space:pre-wrap}
-.ai-msg.user{background:rgba(124,111,255,0.1);border:1px solid rgba(124,111,255,0.2);text-align:right}
-.ai-msg.ai{background:var(--bg3);border:1px solid var(--border)}
-.ai-msg.thinking{color:var(--text3);font-style:italic;font-family:'DM Mono',monospace;font-size:12px;border:1px solid var(--border);padding:10px 16px}
-.ai-msg.ai h1,.ai-msg.ai h2,.ai-msg.ai h3{font-family:'Playfair Display',serif;color:var(--accent);margin:12px 0 6px}
-.ai-msg.ai strong{color:var(--text);font-weight:600}
-.ai-msg.ai ul,.ai-msg.ai ol{padding-left:20px;margin:8px 0}
-.ai-msg.ai li{margin:4px 0}
-.ai-msg.ai p{margin:8px 0}
-.ai-msg.ai code{background:var(--bg4);padding:2px 6px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px}
-.loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3);font-family:'DM Mono',monospace;font-size:13px}
-.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:10px}
-@keyframes spin{to{transform:rotate(360deg)}}
+:root {
+  --bg: #f8f7f4;
+  --bg2: #ffffff;
+  --bg3: #f3f2ef;
+  --bg4: #eceae4;
+  --border: rgba(0,0,0,0.08);
+  --border2: rgba(0,0,0,0.14);
+  --accent: #c96b2e;
+  --accent2: #1a6b4a;
+  --accent3: #2c5282;
+  --text: #1a1915;
+  --text2: #6b6860;
+  --text3: #a8a49c;
+  --green: #1a6b4a;
+  --red: #c0392b;
+  --yellow: #c47b0a;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow2: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:var(--bg); color:var(--text); font-family:'Geist',sans-serif; font-size:14px; min-height:100vh; }
+
+/* Header */
+.header { 
+  padding:14px 32px; 
+  border-bottom:1px solid var(--border); 
+  display:flex; align-items:center; justify-content:space-between; 
+  position:sticky; top:0; 
+  background:rgba(248,247,244,0.92); 
+  z-index:100; 
+  backdrop-filter:blur(12px);
+}
+.logo { font-family:'Instrument Serif',serif; font-size:18px; color:var(--text); letter-spacing:0.01em; display:flex; align-items:center; gap:10px; }
+.logo-dot { width:8px; height:8px; background:var(--accent); border-radius:50%; }
+.logo em { font-style:italic; color:var(--text3); font-size:12px; font-family:'Geist',sans-serif; margin-left:4px; font-weight:300; }
+.header-right { display:flex; align-items:center; gap:10px; }
+.refresh-btn { 
+  background:var(--bg2); border:1px solid var(--border2); color:var(--text); 
+  padding:7px 14px; border-radius:8px; cursor:pointer; font-size:13px; 
+  font-family:'Geist',sans-serif; transition:all 0.15s; font-weight:500;
+  box-shadow:var(--shadow);
+}
+.refresh-btn:hover { background:var(--bg3); border-color:var(--text3); }
+.filter-label { display:flex; align-items:center; gap:6px; cursor:pointer; color:var(--text2); font-size:13px; }
+.filter-label input { accent-color:var(--accent); cursor:pointer; }
+.fetch-time { color:var(--text3); font-family:'Geist Mono',monospace; font-size:11px; }
+
+/* Main */
+.main { padding:28px 32px; max-width:1440px; margin:0 auto; }
+.section-title { 
+  font-family:'Instrument Serif',serif; font-size:15px; color:var(--text2); 
+  margin-bottom:14px; display:flex; align-items:center; gap:10px; font-weight:400;
+  letter-spacing:0.02em;
+}
+.section-title::after { content:''; flex:1; height:1px; background:var(--border); }
+
+/* KPI Grid */
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin-bottom:24px; }
+.kpi { 
+  background:var(--bg2); border:1px solid var(--border); border-radius:12px; 
+  padding:18px 20px; box-shadow:var(--shadow); transition:all 0.15s;
+  position:relative; overflow:hidden;
+}
+.kpi:hover { box-shadow:var(--shadow2); border-color:var(--border2); }
+.kpi-label { color:var(--text3); font-size:11px; text-transform:uppercase; letter-spacing:0.1em; margin-bottom:8px; font-weight:500; }
+.kpi-value { font-family:'Instrument Serif',serif; font-size:28px; color:var(--text); line-height:1; }
+.kpi-value.green { color:var(--green); }
+.kpi-sub { color:var(--text3); font-family:'Geist Mono',monospace; font-size:11px; margin-top:6px; }
+.kpi-accent { position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--kpi-color, var(--accent)); opacity:0.6; }
+
+/* Category Cards */
+.cat-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:10px; margin-bottom:24px; }
+.cat-card { 
+  background:var(--bg2); border:1px solid var(--border); border-radius:12px; 
+  padding:18px; cursor:pointer; transition:all 0.15s; box-shadow:var(--shadow);
+}
+.cat-card:hover, .cat-card.active { border-color:var(--accent); box-shadow:var(--shadow2); background:var(--bg2); }
+.cat-card.active { background:#fef9f5; }
+.cat-name { font-family:'Instrument Serif',serif; font-size:20px; margin-bottom:14px; color:var(--text); }
+.cat-stat { display:flex; justify-content:space-between; margin-bottom:6px; font-size:13px; }
+.cat-stat-label { color:var(--text3); }
+.cat-stat-value { font-family:'Geist Mono',monospace; color:var(--text); font-size:12px; }
+.progress { height:3px; background:var(--bg4); border-radius:2px; margin-top:12px; overflow:hidden; }
+.progress-bar { height:3px; background:var(--accent); border-radius:2px; transition:width 0.8s ease; opacity:0.7; }
+
+/* Grid */
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+.card { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:20px; box-shadow:var(--shadow); }
+.card-title { font-size:11px; color:var(--text3); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:16px; font-weight:500; }
+.chart-wrap { position:relative; height:200px; }
+
+/* Tabs */
+.tabs { display:flex; gap:2px; margin-bottom:14px; background:var(--bg3); padding:3px; border-radius:9px; width:fit-content; border:1px solid var(--border); }
+.tab { padding:6px 16px; border-radius:7px; font-size:13px; cursor:pointer; color:var(--text2); transition:all 0.15s; font-weight:500; }
+.tab.active { background:var(--bg2); color:var(--text); box-shadow:var(--shadow); }
+
+/* Table */
+.table { width:100%; border-collapse:collapse; }
+.table th { color:var(--text3); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; font-weight:500; padding:6px 12px; text-align:left; border-bottom:1px solid var(--border); }
+.table td { padding:9px 12px; border-bottom:1px solid var(--bg3); font-size:13px; }
+.table tr:last-child td { border-bottom:none; }
+.table tr:hover td { background:var(--bg3); }
+.badge { display:inline-block; padding:2px 8px; border-radius:5px; font-size:11px; font-family:'Geist Mono',monospace; font-weight:500; }
+.badge-green { background:#e8f5ee; color:#1a6b4a; }
+.badge-yellow { background:#fef3e0; color:#c47b0a; }
+.badge-red { background:#fdecea; color:#c0392b; }
+.badge-blue { background:#e8f0fe; color:#2c5282; }
+.badge-orange { background:#fef0e8; color:#c96b2e; }
+
+/* Simulator */
+.simulator { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:24px; box-shadow:var(--shadow); }
+.sim-controls { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; margin-bottom:20px; }
+.sim-group { display:flex; flex-direction:column; gap:5px; }
+.sim-group label { color:var(--text3); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; font-weight:500; }
+select { background:var(--bg3); border:1px solid var(--border2); color:var(--text); padding:8px 12px; border-radius:8px; font-size:13px; cursor:pointer; outline:none; font-family:'Geist',sans-serif; }
+input[type=range] { width:160px; accent-color:var(--accent); cursor:pointer; }
+.sim-btn { background:var(--accent); color:#fff; border:none; padding:9px 22px; border-radius:8px; cursor:pointer; font-weight:600; font-size:13px; font-family:'Geist',sans-serif; transition:opacity 0.15s; }
+.sim-btn:hover { opacity:0.88; }
+.sim-results { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.sim-result { background:var(--bg3); border-radius:10px; padding:14px; border:1px solid var(--border); }
+.sim-result-label { color:var(--text3); font-size:11px; text-transform:uppercase; letter-spacing:0.08em; margin-bottom:8px; font-weight:500; }
+.sim-result-value { font-family:'Instrument Serif',serif; font-size:20px; color:var(--text); }
+
+/* Sales section */
+.sales-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:24px; }
+
+/* AI Section */
+.ai-section { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:22px; margin-bottom:28px; box-shadow:var(--shadow); }
+.ai-header { display:flex; align-items:center; gap:10px; margin-bottom:16px; }
+.ai-icon { width:28px; height:28px; background:linear-gradient(135deg,#1a1915,#c96b2e); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0; color:white; }
+.ai-title { font-family:'Instrument Serif',serif; font-size:16px; font-weight:400; }
+.ai-subtitle { color:var(--text3); font-size:11px; margin-left:auto; font-family:'Geist Mono',monospace; }
+.quick-questions { display:flex; flex-wrap:wrap; gap:7px; margin-bottom:14px; }
+.quick-q { background:var(--bg3); border:1px solid var(--border); color:var(--text2); padding:6px 13px; border-radius:20px; font-size:12px; cursor:pointer; transition:all 0.15s; white-space:nowrap; font-weight:500; }
+.quick-q:hover { border-color:var(--accent); color:var(--accent); background:#fef9f5; }
+.ai-input-row { display:flex; gap:8px; }
+.ai-input { flex:1; background:var(--bg3); border:1px solid var(--border2); color:var(--text); padding:10px 15px; border-radius:10px; font-family:'Geist',sans-serif; font-size:14px; outline:none; transition:border-color 0.15s; }
+.ai-input:focus { border-color:var(--accent); background:var(--bg2); }
+.ai-input::placeholder { color:var(--text3); }
+.ai-send { background:var(--text); color:var(--bg); border:none; padding:10px 20px; border-radius:10px; cursor:pointer; font-weight:600; font-size:13px; font-family:'Geist',sans-serif; transition:opacity 0.15s; white-space:nowrap; }
+.ai-send:hover { opacity:0.85; }
+.ai-send:disabled { opacity:0.4; cursor:not-allowed; }
+.ai-messages { margin-top:14px; display:flex; flex-direction:column; gap:10px; max-height:500px; overflow-y:auto; }
+.ai-msg { padding:14px 16px; border-radius:10px; font-size:13px; line-height:1.75; }
+.ai-msg.user { background:var(--bg4); text-align:right; border:1px solid var(--border); color:var(--text2); }
+.ai-msg.ai { background:var(--bg3); border:1px solid var(--border); color:var(--text); }
+.ai-msg.thinking { color:var(--text3); font-style:italic; font-family:'Geist Mono',monospace; font-size:12px; border:1px solid var(--border); padding:10px 16px; background:var(--bg3); }
+.ai-msg.ai h1,.ai-msg.ai h2,.ai-msg.ai h3 { font-family:'Instrument Serif',serif; color:var(--accent); margin:12px 0 6px; font-weight:400; }
+.ai-msg.ai strong { color:var(--text); font-weight:600; }
+.ai-msg.ai ul,.ai-msg.ai ol { padding-left:20px; margin:8px 0; }
+.ai-msg.ai li { margin:4px 0; }
+.ai-msg.ai p { margin:8px 0; }
+.ai-msg.ai p:first-child { margin-top:0; }
+.ai-msg.ai code { background:var(--bg4); padding:2px 6px; border-radius:4px; font-family:'Geist Mono',monospace; font-size:12px; }
+
+/* Loading */
+.loading { display:flex; align-items:center; justify-content:center; height:240px; color:var(--text3); font-size:13px; font-family:'Geist Mono',monospace; }
+.spinner { width:16px; height:16px; border:2px solid var(--border2); border-top-color:var(--accent); border-radius:50%; animation:spin 0.8s linear infinite; margin-right:10px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Scrollbar */
+::-webkit-scrollbar { width:6px; }
+::-webkit-scrollbar-track { background:var(--bg3); }
+::-webkit-scrollbar-thumb { background:var(--border2); border-radius:3px; }
 </style>
 </head>
 <body>
+
 <div class="header">
-  <div class="logo">MYFASHIONFRUIT<em>Intelligence Dashboard</em></div>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    MYFASHIONFRUIT
+    <em>Intelligence</em>
+  </div>
   <div class="header-right">
-    <span class="fetch-time" id="fetchTime">—</span>
-    <label style="display:flex;align-items:center;gap:8px;cursor:pointer;color:var(--text2);font-size:12px">
-      <input type="checkbox" id="onlyWithCost" onchange="render()" style="accent-color:var(--accent);cursor:pointer">
+    <label class="filter-label">
+      <input type="checkbox" id="onlyWithCost" onchange="render()">
       Μόνο με cost
     </label>
+    <span class="fetch-time" id="fetchTime">—</span>
     <button class="refresh-btn" onclick="loadData(true)">&#8635; Ανανέωση</button>
   </div>
 </div>
-<div class="main" id="app"><div class="loading"><div class="spinner"></div>Φορτώνω δεδομένα από Shopify...</div></div>
+
+<div class="main" id="app">
+  <div class="loading"><div class="spinner"></div>Φορτώνω δεδομένα από Shopify...</div>
+</div>
+
 <script>
-var appData=null,marginChart=null,catChart=null;
+var appData=null,marginChart=null,catChart=null,salesChart=null;
+
+function fmt(n){return '\u20AC'+parseFloat(n).toLocaleString('el-GR',{minimumFractionDigits:0,maximumFractionDigits:0});}
+function fmtD(n){return parseFloat(n).toFixed(1);}
+
+async function loadData(force){
+  document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div>Φορτώνω δεδομένα από Shopify...</div>';
+  var res=await fetch('/api/data'+(force?'?refresh=1':''));
+  appData=await res.json();
+  document.getElementById('fetchTime').textContent='Updated: '+new Date(appData.fetchedAt).toLocaleTimeString('el');
+  render();
+}
+
 function computeAnalytics(variants){
   var withCost=variants.filter(function(v){return v.hasCost;});
   var wcs=variants.filter(function(v){return v.hasCost&&v.qty>0;});
   var cats={},byProd={};
   variants.forEach(function(v){
     if(!cats[v.type])cats[v.type]={name:v.type,count:0,stockQty:0,stockCost:0,stockRetail:0,margins:[]};
-    cats[v.type].count++;cats[v.type].stockQty+=Math.max(v.qty,0);cats[v.type].stockCost+=v.stockValueCost;cats[v.type].stockRetail+=v.stockValueRetail;
+    cats[v.type].count++;cats[v.type].stockQty+=Math.max(v.qty,0);
+    cats[v.type].stockCost+=v.stockValueCost;cats[v.type].stockRetail+=v.stockValueRetail;
     if(v.margin!==null)cats[v.type].margins.push(v.margin);
     if(!byProd[v.product])byProd[v.product]={product:v.product,type:v.type,totalQty:0,totalCost:0,totalRetail:0,margins:[]};
     byProd[v.product].totalQty+=Math.max(v.qty,0);byProd[v.product].totalRetail+=v.stockValueRetail;
@@ -131,7 +228,8 @@ function computeAnalytics(variants){
   var buckets={'<30%':0,'30-40%':0,'40-50%':0,'50-60%':0,'60-70%':0,'>70%':0};
   withCost.forEach(function(v){var m=v.margin;if(m<30)buckets['<30%']++;else if(m<40)buckets['30-40%']++;else if(m<50)buckets['40-50%']++;else if(m<60)buckets['50-60%']++;else if(m<70)buckets['60-70%']++;else buckets['>70%']++;});
   return {
-    total:variants.length,withCost:withCost.length,coveragePct:(withCost.length/Math.max(variants.length,1)*100).toFixed(1),
+    total:variants.length,withCost:withCost.length,
+    coveragePct:(withCost.length/Math.max(variants.length,1)*100).toFixed(1),
     totalStockQty:variants.filter(function(v){return v.qty>0;}).reduce(function(s,v){return s+v.qty;},0),
     totalStockCost:wcs.reduce(function(s,v){return s+v.stockValueCost;},0),
     totalStockRetail:wcs.reduce(function(s,v){return s+v.stockValueRetail;},0),
@@ -143,49 +241,51 @@ function computeAnalytics(variants){
     marginBuckets:buckets
   };
 }
-function fmt(n){return '€'+parseFloat(n).toLocaleString('el-GR',{minimumFractionDigits:0,maximumFractionDigits:0});}
-function fmtD(n){return parseFloat(n).toFixed(1);}
-async function loadData(force){
-  document.getElementById('app').innerHTML='<div class="loading"><div class="spinner"></div>Φορτώνω δεδομένα από Shopify...</div>';
-  var res=await fetch('/api/data'+(force?'?refresh=1':''));
-  appData=await res.json();
-  document.getElementById('fetchTime').textContent='Τελευταία: '+new Date(appData.fetchedAt).toLocaleTimeString('el');
-  render();
-}
+
 function render(){
-  var filterCost = document.getElementById('onlyWithCost') && document.getElementById('onlyWithCost').checked;
-  if (filterCost) {
-    var orig = appData.analytics;
-    // Recompute analytics with only variants that have cost
-    var filtered = appData.variants.filter(function(v){return v.hasCost;});
-    appData._analytics = appData.analytics;
-    appData.analytics = computeAnalytics(filtered);
-  } else if (appData._analytics) {
-    appData.analytics = appData._analytics;
-    appData._analytics = null;
-  }
-  var a=appData.analytics;
+  var filterCost=document.getElementById('onlyWithCost')&&document.getElementById('onlyWithCost').checked;
+  var variants=filterCost?appData.variants.filter(function(v){return v.hasCost;}):appData.variants;
+  var a=computeAnalytics(variants);
+  var sales=appData.sales||{};
   var profit=a.totalStockRetail-a.totalStockCost;
+
   var catCards=a.categories.map(function(c){
-    var pct=Math.min(c.stockRetail/a.totalStockRetail*100*3,100);
-    return '<div class="cat-card" onclick="selectCat(\''+c.name+'\',this)"><div class="cat-name">'+c.name+'</div>'
+    var pct=Math.min(c.stockRetail/Math.max(a.totalStockRetail,1)*100*3,100);
+    return '<div class="cat-card" onclick="selectCat(\''+c.name+'\',this)">'
+      +'<div class="cat-name">'+c.name+'</div>'
       +'<div class="cat-stat"><span class="cat-stat-label">Αξία πώλησης</span><span class="cat-stat-value">'+fmt(c.stockRetail)+'</span></div>'
-      +'<div class="cat-stat"><span class="cat-stat-label">Κόστος stock</span><span class="cat-stat-value">'+fmt(c.stockCost)+'</span></div>'
+      +'<div class="cat-stat"><span class="cat-stat-label">Κόστος</span><span class="cat-stat-value">'+fmt(c.stockCost)+'</span></div>'
       +'<div class="cat-stat"><span class="cat-stat-label">Τεμάχια</span><span class="cat-stat-value">'+c.stockQty.toLocaleString('el')+'</span></div>'
       +'<div class="cat-stat"><span class="cat-stat-label">Margin</span><span class="cat-stat-value" style="color:var(--green)">'+fmtD(c.avgMargin)+'%</span></div>'
-      +'<div class="progress"><div class="progress-bar" style="width:'+pct+'%"></div></div></div>';
+      +'<div class="progress"><div class="progress-bar" style="width:'+pct+'%"></div></div>'
+      +'</div>';
   }).join('');
+
   var catOptions=a.categories.map(function(c){return '<option value="'+c.name+'">'+c.name+'</option>';}).join('');
+
+  // Sales section HTML
+  var salesHTML='';
+  if(sales.totalRevenue30){
+    salesHTML='<div class="section-title">&#128200; Πωλήσεις</div>'
+      +'<div class="kpi-grid" style="margin-bottom:24px">'
+      +'<div class="kpi" style="--kpi-color:var(--green)"><div class="kpi-label">Έσοδα 30 ημερών</div><div class="kpi-value">'+fmt(sales.totalRevenue30)+'</div><div class="kpi-sub">'+sales.orderCount30+' παραγγελίες</div><div class="kpi-accent"></div></div>'
+      +'<div class="kpi" style="--kpi-color:var(--accent3)"><div class="kpi-label">Μέσο καλάθι</div><div class="kpi-value">'+fmt(sales.avgOrderValue30)+'</div><div class="kpi-sub">τελευταίες 30 μέρες</div><div class="kpi-accent"></div></div>'
+      +'<div class="kpi" style="--kpi-color:var(--accent)"><div class="kpi-label">Νέοι πελάτες</div><div class="kpi-value">'+sales.newCustomers30+'</div><div class="kpi-sub">τελευταίες 30 μέρες</div><div class="kpi-accent"></div></div>'
+      +'<div class="kpi" style="--kpi-color:var(--yellow)"><div class="kpi-label">Επαναλαμβανόμενοι</div><div class="kpi-value">'+sales.returningCustomers30+'</div><div class="kpi-sub">τελευταίες 30 μέρες</div><div class="kpi-accent"></div></div>'
+      +'</div>';
+  }
+
   document.getElementById('app').innerHTML=
     '<div class="section-title">&#128202; Επισκόπηση</div>'
     +'<div class="kpi-grid">'
-    +'<div class="kpi" style="--kpi-color:var(--accent)"><div class="kpi-label">Αξία Stock (Πώληση)</div><div class="kpi-value">'+fmt(a.totalStockRetail)+'</div><div class="kpi-sub">Αν πουλούσαμε τα πάντα</div></div>'
-    +'<div class="kpi" style="--kpi-color:var(--green)"><div class="kpi-label">Αξία Stock (Κόστος)</div><div class="kpi-value">'+fmt(a.totalStockCost)+'</div><div class="kpi-sub">Κεφάλαιο επενδυμένο</div></div>'
-    +'<div class="kpi" style="--kpi-color:var(--accent2)"><div class="kpi-label">Μέσο Margin</div><div class="kpi-value green">'+fmtD(a.avgMargin)+'%</div><div class="kpi-sub">Σε variants με cost</div></div>'
-    +'<div class="kpi" style="--kpi-color:var(--yellow)"><div class="kpi-label">Δυνητικό Κέρδος</div><div class="kpi-value">'+fmt(profit)+'</div><div class="kpi-sub">Πώληση - Κόστος</div></div>'
-    +'<div class="kpi" style="--kpi-color:var(--text3)"><div class="kpi-label">Τεμάχια Stock</div><div class="kpi-value">'+a.totalStockQty.toLocaleString('el')+'</div><div class="kpi-sub">'+a.total+' active variants</div></div>'
-    +'<div class="kpi" style="--kpi-color:var(--accent3)"><div class="kpi-label">Cost Coverage</div><div class="kpi-value">'+a.coveragePct+'%</div><div class="kpi-sub">'+a.withCost+'/'+a.total+' variants</div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--accent)"><div class="kpi-label">Αξία Stock (Πώληση)</div><div class="kpi-value">'+fmt(a.totalStockRetail)+'</div><div class="kpi-sub">Αν πουλούσαμε τα πάντα</div><div class="kpi-accent"></div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--green)"><div class="kpi-label">Αξία Stock (Κόστος)</div><div class="kpi-value">'+fmt(a.totalStockCost)+'</div><div class="kpi-sub">Κεφάλαιο επενδυμένο</div><div class="kpi-accent"></div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--accent2)"><div class="kpi-label">Μέσο Margin</div><div class="kpi-value green">'+fmtD(a.avgMargin)+'%</div><div class="kpi-sub">Σε variants με cost</div><div class="kpi-accent"></div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--yellow)"><div class="kpi-label">Δυνητικό Κέρδος</div><div class="kpi-value">'+fmt(profit)+'</div><div class="kpi-sub">Πώληση - Κόστος</div><div class="kpi-accent"></div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--text3)"><div class="kpi-label">Τεμάχια Stock</div><div class="kpi-value">'+a.totalStockQty.toLocaleString('el')+'</div><div class="kpi-sub">'+a.total+' active variants</div><div class="kpi-accent"></div></div>'
+    +'<div class="kpi" style="--kpi-color:var(--accent3)"><div class="kpi-label">Cost Coverage</div><div class="kpi-value">'+a.coveragePct+'%</div><div class="kpi-sub">'+a.withCost+'/'+a.total+' variants</div><div class="kpi-accent"></div></div>'
     +'</div>'
+    +salesHTML
     +'<div class="section-title">&#127991; Ανά Κατηγορία</div>'
     +'<div class="cat-grid">'+catCards+'</div>'
     +'<div class="grid-2">'
@@ -194,7 +294,7 @@ function render(){
     +'</div>'
     +'<div class="section-title">&#127942; Top Προϊόντα</div>'
     +'<div class="tabs"><div class="tab active" onclick="switchTab(\'stockVal\',this)">Αξία Stock</div><div class="tab" onclick="switchTab(\'margin\',this)">Υψηλό Margin</div><div class="tab" onclick="switchTab(\'qty\',this)">Περισσότερα τεμ.</div></div>'
-    +'<div class="card" style="margin-bottom:28px"><div id="topTable"></div></div>'
+    +'<div class="card" style="margin-bottom:24px"><div id="topTable"></div></div>'
     +'<div class="section-title">&#127919; Simulator Εκπτώσεων</div>'
     +'<div class="simulator"><div class="sim-controls">'
     +'<div class="sim-group"><label>Κατηγορία</label><select id="simCat">'+catOptions+'</select></div>'
@@ -207,42 +307,56 @@ function render(){
     +'<div class="sim-result"><div class="sim-result-label">Νέο Κέρδος</div><div class="sim-result-value" id="sr4"></div></div>'
     +'</div></div>'
     +'<div class="section-title">&#129302; AI Σύμβουλος</div>'
-    +'<div class="ai-section"><div class="ai-header"><div class="ai-icon">&#10022;</div><div class="ai-title">Ρώτα ό,τι θέλεις για το stock σου</div><div class="ai-subtitle">Gemini AI · Live Shopify</div></div>'
+    +'<div class="ai-section"><div class="ai-header"><div class="ai-icon">&#10022;</div><div class="ai-title">Ρώτα ό,τι θέλεις για το business σου</div><div class="ai-subtitle">MiniMax M2.5 · Live Shopify</div></div>'
     +'<div class="quick-questions">'
     +'<div class="quick-q" onclick="askQ(this)">Ποια κατηγορία να διαφημίσω;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Ποια προϊόντα έχουν το καλύτερο ROI;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Τι έκπτωση να κάνω στα κοσμήματα;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Ποια αποθέματα κινδυνεύουν να μπλοκαριστούν;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Σύγκρισε τις κατηγορίες ανά κερδοφορία</div>'
-    +'<div class="quick-q" onclick="askQ(this)">Πόσο budget διαφήμισης δικαιολογείται ανά κατηγορία;</div>'
+    +'<div class="quick-q" onclick="askQ(this)">Πόσο budget διαφήμισης δικαιολογείται;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Ποια προϊόντα να βάλω σε sale πρώτα;</div>'
     +'<div class="quick-q" onclick="askQ(this)">Αν βάλω 30% έκπτωση στα ρούχα τι γίνεται;</div>'
     +'</div>'
-    +'<div class="ai-input-row"><input class="ai-input" id="aiIn" placeholder="π.χ. Ποια κοσμήματα αξίζει να προωθήσω στο Instagram;" onkeydown="if(event.key===\'Enter\')sendAI()"><button class="ai-send" id="aiBtn" onclick="sendAI()">Ρώτα &rarr;</button></div>'
+    +'<div class="ai-input-row"><input class="ai-input" id="aiIn" placeholder="π.χ. Ποια κοσμήματα αξίζει να προωθήσω αυτή την εποχή;" onkeydown="if(event.key===\'Enter\')sendAI()"><button class="ai-send" id="aiBtn" onclick="sendAI()">Ρώτα</button></div>'
     +'<div class="ai-messages" id="aiMsgs"></div></div>';
-  renderCharts();
-  renderTop('stockVal');
+
+  renderCharts(a);
+  renderTop('stockVal',a);
 }
-function renderCharts(){
-  var a=appData.analytics;
+
+var chartColors={bg:'rgba(0,0,0,0.03)',grid:'rgba(0,0,0,0.06)',tick:'#a8a49c'};
+
+function renderCharts(a){
   if(marginChart)marginChart.destroy();
   if(catChart)catChart.destroy();
-  var co={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8888aa'}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#8888aa'}}}};
-  marginChart=new Chart(document.getElementById('mChart').getContext('2d'),{type:'bar',data:{labels:Object.keys(a.marginBuckets),datasets:[{data:Object.values(a.marginBuckets),backgroundColor:['#f87171','#fbbf24','#fbbf24','#4ade80','#4ade80','#4ade80'],borderRadius:6,borderWidth:0}]},options:co});
-  catChart=new Chart(document.getElementById('cChart').getContext('2d'),{type:'doughnut',data:{labels:a.categories.map(function(c){return c.name;}),datasets:[{data:a.categories.map(function(c){return c.stockRetail;}),backgroundColor:['#c9a96e','#7c6fff','#ff6b8a','#4ade80'],borderWidth:2,borderColor:'#111118'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#8888aa',font:{size:12}}}}}});
+  var co={responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:chartColors.grid},ticks:{color:chartColors.tick,font:{size:11}}},y:{grid:{color:chartColors.grid},ticks:{color:chartColors.tick,font:{size:11}}}}};
+  marginChart=new Chart(document.getElementById('mChart').getContext('2d'),{
+    type:'bar',
+    data:{labels:Object.keys(a.marginBuckets),datasets:[{data:Object.values(a.marginBuckets),backgroundColor:['#fdecea','#fef3e0','#fef3e0','#e8f5ee','#e8f5ee','#e8f5ee'],borderColor:['#c0392b','#c47b0a','#c47b0a','#1a6b4a','#1a6b4a','#1a6b4a'],borderWidth:1.5,borderRadius:6}]},
+    options:co
+  });
+  catChart=new Chart(document.getElementById('cChart').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:a.categories.map(function(c){return c.name;}),datasets:[{data:a.categories.map(function(c){return c.stockRetail;}),backgroundColor:['#c96b2e','#2c5282','#1a6b4a','#c47b0a'],borderWidth:3,borderColor:'#ffffff'}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#6b6860',font:{size:12},padding:12}}}}
+  });
 }
-function switchTab(t,el){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});el.classList.add('active');renderTop(t);}
-function renderTop(type){
-  var a=appData.analytics;
+
+function switchTab(t,el){document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active');});el.classList.add('active');var fc=document.getElementById('onlyWithCost')&&document.getElementById('onlyWithCost').checked;var variants=fc?appData.variants.filter(function(v){return v.hasCost;}):appData.variants;renderTop(t,computeAnalytics(variants));}
+
+function renderTop(type,a){
   var list=type==='stockVal'?a.topByStockValue:type==='margin'?a.topByMargin:a.topByQty;
   var rows=list.slice(0,15).map(function(p,i){
     var mc=p.avgMargin>60?'badge-green':p.avgMargin>40?'badge-yellow':p.avgMargin>0?'badge-red':'';
-    var tc=p.type==='ΡΟΥΧΑ'?'badge-accent':p.type==='ΚΟΣΜΗΜΑΤΑ'?'badge-blue':'badge-yellow';
-    return '<tr><td style="color:var(--text3);font-family:\'DM Mono\',monospace;font-size:12px">'+(i+1)+'</td><td>'+p.product+'</td><td><span class="badge '+tc+'">'+p.type+'</span></td><td style="font-family:\'DM Mono\',monospace">'+p.totalQty.toLocaleString('el')+'</td><td style="font-family:\'DM Mono\',monospace">'+fmt(p.totalRetail)+'</td><td>'+(p.avgMargin>0?'<span class="badge '+mc+'">'+fmtD(p.avgMargin)+'%</span>':'&#8212;')+'</td></tr>';
+    var tc=p.type==='ΡΟΥΧΑ'?'badge-orange':p.type==='ΚΟΣΜΗΜΑΤΑ'?'badge-blue':'badge-green';
+    return '<tr><td style="color:var(--text3);font-family:\'Geist Mono\',monospace;font-size:11px">'+(i+1)+'</td><td style="font-weight:500">'+p.product+'</td><td><span class="badge '+tc+'">'+p.type+'</span></td><td style="font-family:\'Geist Mono\',monospace;font-size:12px">'+p.totalQty.toLocaleString('el')+'</td><td style="font-family:\'Geist Mono\',monospace;font-size:12px">'+fmt(p.totalRetail)+'</td><td>'+(p.avgMargin>0?'<span class="badge '+mc+'">'+fmtD(p.avgMargin)+'%</span>':'—')+'</td></tr>';
   }).join('');
   document.getElementById('topTable').innerHTML='<table class="table"><thead><tr><th>#</th><th>Προϊόν</th><th>Κατηγορία</th><th>Τεμ.</th><th>Αξία Stock</th><th>Margin</th></tr></thead><tbody>'+rows+'</tbody></table>';
 }
+
 function selectCat(name,el){document.querySelectorAll('.cat-card').forEach(function(c){c.classList.remove('active');});el.classList.add('active');document.getElementById('simCat').value=name;}
+
 async function runSim(){
   var cat=document.getElementById('simCat').value;
   var disc=document.getElementById('simD').value;
@@ -252,32 +366,34 @@ async function runSim(){
   document.getElementById('sr1').textContent=fmt(d.currentRevenue);
   document.getElementById('sr2').textContent=fmt(d.newRevenue);
   document.getElementById('sr3').textContent=fmt(d.currentProfit);
-  var sr4=document.getElementById('sr4');sr4.textContent=fmt(d.newProfit);sr4.style.color=d.newProfit>0?'var(--green)':'var(--red)';
+  var sr4=document.getElementById('sr4');sr4.textContent=fmt(d.newProfit);
+  sr4.style.color=d.newProfit>0?'var(--green)':'var(--red)';
 }
+
 async function sendAI(){
-  var input=document.getElementById('aiIn');
-  var q=input.value.trim();if(!q)return;
+  var input=document.getElementById('aiIn');var q=input.value.trim();if(!q)return;
   addMsg(q,'user');input.value='';
   document.getElementById('aiBtn').disabled=true;
-  var th=addMsg('Σκέφτομαι με βάση τα live δεδομένα σου...','thinking');
+  var th=addMsg('Αναλύω τα δεδομένα σου...','thinking');
   var res=await fetch('/api/ai',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:q})});
   var d=await res.json();th.remove();addMsg(d.answer||d.error,'ai');
   document.getElementById('aiBtn').disabled=false;
 }
+
 function askQ(el){document.getElementById('aiIn').value=el.textContent;sendAI();}
+
 function addMsg(text,type){
   var msgs=document.getElementById('aiMsgs');
   var div=document.createElement('div');
   div.className='ai-msg '+type;
-  if(type==='ai' && typeof marked !== 'undefined'){
+  if(type==='ai'&&typeof marked!=='undefined'){
     div.innerHTML=marked.parse(text);
   } else {
     div.textContent=text;
   }
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
-  return div;
+  msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;
 }
+
 loadData();
 </script>
 </body>
