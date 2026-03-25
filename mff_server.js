@@ -242,236 +242,170 @@ app.post('/api/ai', async (req, res) => {
     const data = await getData();
     const { analytics, sales } = data;
 
-    // Shopify functions the AI can call
-    const tools = [
-      {
-        type: 'function',
-        function: {
-          name: 'get_orders_by_date',
-          description: 'Get orders for a specific date range. Use for questions like yesterday, this week, last month, specific dates.',
-          parameters: {
-            type: 'object',
-            properties: {
-              from_date: { type: 'string', description: 'Start date ISO format e.g. 2026-03-24T00:00:00Z' },
-              to_date: { type: 'string', description: 'End date ISO format e.g. 2026-03-24T23:59:59Z' }
-            },
-            required: ['from_date', 'to_date']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_product_sales',
-          description: 'Get sales per product for a date range.',
-          parameters: {
-            type: 'object',
-            properties: {
-              from_date: { type: 'string' },
-              to_date: { type: 'string' }
-            },
-            required: ['from_date', 'to_date']
-          }
-        }
-      },
-      {
-        type: 'function',
-        function: {
-          name: 'get_inventory_status',
-          description: 'Get inventory status - low stock, overstock, out of stock.',
-          parameters: {
-            type: 'object',
-            properties: {
-              category: { type: 'string', description: 'Category: ΡΟΥΧΑ, ΚΟΣΜΗΜΑΤΑ, ΑΞΕΣΟΥΑΡ or ALL' },
-              low_stock_threshold: { type: 'number', description: 'Low stock threshold default 5' }
-            }
-          }
-        }
-      }
-    ];
+    // Pre-fetch 7-day data in parallel — AI gets everything ready
+    const now = new Date();
+    const sevenDaysAgo = new Date(now - 7 * 86400000).toISOString();
+    const yesterday = new Date(now - 86400000);
+    const yesterdayStart = new Date(yesterday.setHours(0,0,0,0)).toISOString();
+    const yesterdayEnd = new Date(yesterday.setHours(23,59,59,999)).toISOString();
 
-    async function executeFunction(name, args) {
-      if (name === 'get_orders_by_date') {
-        // Paginate all orders for date range
-        let allOrders = [], cur = null, hn = true;
+    // Fetch 7-day orders + product sales in parallel
+    const [weekOrders, weekProductSales] = await Promise.all([
+      // Weekly orders
+      (async () => {
+        let all = [], cur = null, hn = true;
         while (hn) {
           const cs = cur ? `, after: "${cur}"` : '';
-          const d = await gql(`
-            query {
-              orders(first: 250${cs}, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any", sortKey: CREATED_AT, reverse: true) {
-                pageInfo { hasNextPage endCursor }
-                nodes {
-                  name createdAt
-                  totalPriceSet { shopMoney { amount } }
-                  customer { firstName lastName numberOfOrders }
-                  lineItems(first: 10) { nodes { title quantity } }
-                }
-              }
+          const d = await gql(`query {
+            orders(first:250${cs}, query:"created_at:>${sevenDaysAgo} status:any", sortKey:CREATED_AT, reverse:true) {
+              pageInfo { hasNextPage endCursor }
+              nodes { name createdAt totalPriceSet { shopMoney { amount } } customer { id numberOfOrders } lineItems(first:10) { nodes { title quantity } } }
             }
-          `);
-          allOrders = allOrders.concat(d.data?.orders?.nodes || []);
+          }`);
+          all = all.concat(d.data?.orders?.nodes || []);
           hn = d.data?.orders?.pageInfo?.hasNextPage;
           cur = d.data?.orders?.pageInfo?.endCursor;
         }
-        const orders = allOrders;
-        const total = orders.reduce((s,o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount||0), 0);
-        return {
-          order_count: orders.length,
-          total_revenue: total.toFixed(2) + ' EUR',
-          avg_order: orders.length > 0 ? (total/orders.length).toFixed(2) + ' EUR' : '0',
-          orders: orders.slice(0,20).map(o => ({
-            name: o.name,
-            date: o.createdAt.split('T')[0],
-            amount: parseFloat(o.totalPriceSet?.shopMoney?.amount||0).toFixed(2) + ' EUR',
-            customer: o.customer ? (o.customer.firstName + ' ' + o.customer.lastName) : 'Guest',
-            items: (o.lineItems?.nodes||[]).map(li => li.title + ' x' + li.quantity).join(', ')
-          }))
-        };
-      }
-
-      if (name === 'get_product_sales') {
-        // Paginate all orders
-        let allSaleOrders = [], scur = null, shn = true;
-        while (shn) {
-          const scs = scur ? `, after: "${scur}"` : '';
-          const d = await gql(`
-            query {
-              orders(first: 250${scs}, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any") {
-                pageInfo { hasNextPage endCursor }
-                nodes {
-                  lineItems(first: 20) {
-                    nodes { title quantity originalUnitPriceSet { shopMoney { amount } } }
-                  }
-                }
-              }
+        return all;
+      })(),
+      // Weekly product sales
+      (async () => {
+        let all = [], cur = null, hn = true;
+        while (hn) {
+          const cs = cur ? `, after: "${cur}"` : '';
+          const d = await gql(`query {
+            orders(first:250${cs}, query:"created_at:>${sevenDaysAgo} status:any") {
+              pageInfo { hasNextPage endCursor }
+              nodes { lineItems(first:20) { nodes { title quantity originalUnitPriceSet { shopMoney { amount } } } } }
             }
-          `);
-          allSaleOrders = allSaleOrders.concat(d.data?.orders?.nodes || []);
-          shn = d.data?.orders?.pageInfo?.hasNextPage;
-          scur = d.data?.orders?.pageInfo?.endCursor;
+          }`);
+          all = all.concat(d.data?.orders?.nodes || []);
+          hn = d.data?.orders?.pageInfo?.hasNextPage;
+          cur = d.data?.orders?.pageInfo?.endCursor;
         }
-        const pm = {};
-        allSaleOrders.forEach(o => {
-          (o.lineItems?.nodes||[]).forEach(li => {
-            if (!pm[li.title]) pm[li.title] = { title: li.title, qty: 0, revenue: 0 };
-            pm[li.title].qty += li.quantity;
-            pm[li.title].revenue += parseFloat(li.originalUnitPriceSet?.shopMoney?.amount||0) * li.quantity;
-          });
-        });
-        return Object.values(pm).sort((a,b) => b.qty - a.qty).slice(0,20).map(p => ({
-          product: p.title, qty_sold: p.qty, revenue: p.revenue.toFixed(2) + ' EUR'
-        }));
-      }
+        return all;
+      })()
+    ]);
 
-      if (name === 'get_inventory_status') {
-        const cat = args.category || 'ALL';
-        const thr = args.low_stock_threshold || 5;
-        let variants = data.variants;
-        if (cat !== 'ALL') variants = variants.filter(v => v.type === cat);
-        return {
-          low_stock: variants.filter(v => v.qty > 0 && v.qty <= thr).sort((a,b) => a.qty-b.qty).slice(0,10).map(v => ({ product: v.product, qty: v.qty, price: v.price })),
-          out_of_stock: variants.filter(v => v.qty <= 0).length,
-          over_stock: variants.filter(v => v.qty > 50).sort((a,b) => b.qty-a.qty).slice(0,10).map(v => ({ product: v.product, qty: v.qty })),
-          total: variants.length
-        };
-      }
-      return { error: 'Unknown: ' + name };
-    }
+    // Process weekly data
+    const weekRevenue = weekOrders.reduce((s,o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount||0), 0);
+    const weekOrderCount = weekOrders.length;
 
-    const today = new Date();
-    const yesterday = new Date(today - 86400000);
+    // Product sales this week
+    const weekProdMap = {};
+    weekProductSales.forEach(o => {
+      (o.lineItems?.nodes||[]).forEach(li => {
+        if (!weekProdMap[li.title]) weekProdMap[li.title] = { title: li.title, qty: 0, revenue: 0 };
+        weekProdMap[li.title].qty += li.quantity;
+        weekProdMap[li.title].revenue += parseFloat(li.originalUnitPriceSet?.shopMoney?.amount||0) * li.quantity;
+      });
+    });
+    const topWeekProducts = Object.values(weekProdMap).sort((a,b) => b.qty - a.qty).slice(0, 20);
 
-    const systemPrompt = [
+    // Days of stock remaining per product
+    const stockWithDays = data.variants
+      .filter(v => v.qty > 0 && v.hasCost)
+      .map(v => {
+        const weekSales = weekProdMap[v.product]?.qty || 0;
+        const dailyRate = weekSales / 7;
+        const daysLeft = dailyRate > 0 ? Math.round(v.qty / dailyRate) : 999;
+        return { product: v.product, type: v.type, qty: v.qty, price: v.price, cost: v.cost, margin: v.margin, weekSales, daysLeft };
+      })
+      .sort((a,b) => a.daysLeft - b.daysLeft);
+
+    // Critical stock (< 14 days)
+    const criticalStock = stockWithDays.filter(v => v.daysLeft < 14 && v.daysLeft < 999).slice(0,10);
+    // Dead stock (> 90 days or no sales)
+    const deadStock = stockWithDays.filter(v => v.daysLeft > 90).sort((a,b) => b.qty*b.cost - a.qty*a.cost).slice(0,10);
+
+    console.log('Pre-fetched: weekOrders=' + weekOrderCount + ', products=' + topWeekProducts.length);
+
+    // Build comprehensive context — NO function calls needed
+    const context = [
       'Είσαι σύμβουλος για το eshop MYFASHIONFRUIT. Απαντάς ΠΑΝΤΑ στα ελληνικά με markdown.',
-      'Σήμερα: ' + today.toISOString().split('T')[0] + ' (UTC+2). Χθες: ' + yesterday.toISOString().split('T')[0],
+      'Σήμερα: ' + now.toISOString().split('T')[0],
       '',
-      '=== ΤΡΕΧΟΝ STOCK (ΟΛΟΚΛΗΡΩΜΕΝΑ ΔΕΔΟΜΕΝΑ) ===',
-      'Σύνολο variants: ' + analytics.total + ' | Με cost: ' + analytics.withCost + ' (' + analytics.coveragePct + '%)',
-      'Συνολική αξία stock (τιμή πώλησης): ' + analytics.totalStockRetail.toFixed(0) + ' EUR',
-      'Συνολικό κόστος stock: ' + analytics.totalStockCost.toFixed(0) + ' EUR',
-      'Δυνητικό κέρδος (αξία - κόστος): ' + (analytics.totalStockRetail - analytics.totalStockCost).toFixed(0) + ' EUR',
-      'Μέσο margin: ' + analytics.avgMargin.toFixed(1) + '%',
+      '=== STOCK ΑΝΑΛΥΣΗ ===',
+      'Σύνολο variants: ' + analytics.total + ' | Αξία πώλησης: ' + analytics.totalStockRetail.toFixed(0) + ' EUR | Κόστος: ' + analytics.totalStockCost.toFixed(0) + ' EUR | Δυνητικό κέρδος: ' + (analytics.totalStockRetail - analytics.totalStockCost).toFixed(0) + ' EUR | Μέσο margin: ' + analytics.avgMargin.toFixed(1) + '%',
       '',
-      '=== ΑΝΑΛΥΣΗ ΑΝΑ ΚΑΤΗΓΟΡΙΑ ===',
+      '=== ΑΝΑ ΚΑΤΗΓΟΡΙΑ ===',
       ...analytics.categories.map(c =>
-        c.name + ': ' + c.stockQty + ' τεμ | αξία πώλησης ' + c.stockRetail.toFixed(0) + ' EUR | κόστος ' + c.stockCost.toFixed(0) + ' EUR | κέρδος ' + (c.stockRetail - c.stockCost).toFixed(0) + ' EUR | margin ' + c.avgMargin.toFixed(1) + '%'
+        c.name + ': ' + c.stockQty + ' τεμ | πώληση ' + c.stockRetail.toFixed(0) + ' EUR | κόστος ' + c.stockCost.toFixed(0) + ' EUR | κέρδος ' + (c.stockRetail-c.stockCost).toFixed(0) + ' EUR | margin ' + c.avgMargin.toFixed(1) + '%'
       ),
       '',
-      '=== TOP 10 ΠΡΟΙΟΝΤΑ (αξία stock) ===',
-      ...analytics.topByStockValue.slice(0,10).map(p =>
-        p.product + ': ' + p.totalQty + ' τεμ | ' + p.totalRetail.toFixed(0) + ' EUR | margin ' + p.avgMargin.toFixed(1) + '%'
-      ),
+      '=== ΠΩΛΗΣΕΙΣ ΤΕΛΕΥΤΑΙΩΝ 7 ΗΜΕΡΩΝ ===',
+      'Παραγγελίες: ' + weekOrderCount + ' | Έσοδα: ' + weekRevenue.toFixed(0) + ' EUR | Μέσος ημερήσιος τζίρος: ' + (weekRevenue/7).toFixed(0) + ' EUR',
+      'Top προϊόντα εβδομάδας: ' + topWeekProducts.slice(0,10).map(p => p.title + ' (' + p.qty + ' τεμ, ' + p.revenue.toFixed(0) + ' EUR)').join(' | '),
       '',
-      '=== ΠΩΛΗΣΕΙΣ 30 ΗΜΕΡΩΝ ===',
+      '=== ΠΩΛΗΣΕΙΣ ΤΕΛΕΥΤΑΙΩΝ 30 ΗΜΕΡΩΝ ===',
       'Παραγγελίες: ' + (sales.orderCount30||0) + ' | Έσοδα: ' + (sales.totalRevenue30||0).toFixed(0) + ' EUR | Μέσο καλάθι: ' + (sales.avgOrderValue30||0).toFixed(0) + ' EUR',
       'Νέοι πελάτες: ' + (sales.newCustomers30||0) + ' | Επαναλαμβανόμενοι: ' + (sales.returningCustomers30||0),
       '',
-      'Χρησιμοποίησε τα functions ΜΟΝΟ για ημερήσια/εβδομαδιαία δεδομένα ή συγκεκριμένες παραγγελίες.',
-      'Για ερωτήσεις margin, stock, κέρδους, κατηγοριών — ΟΛΑ τα δεδομένα υπάρχουν ήδη παραπάνω!'
+      '=== ΚΡΙΣΙΜΟ STOCK (τελειωνει < 14 μερες) ===',
+      criticalStock.length > 0
+        ? criticalStock.map(v => v.product + ': ' + v.qty + ' τεμ, ' + v.daysLeft + ' μέρες, πωλήσεις εβδ. ' + v.weekSales).join(' | ')
+        : 'Κανένα προϊόν σε κρίσιμο επίπεδο',
+      '',
+      '=== ΝΕΚΡΟ STOCK (δεν πουλαει, > 90 μερες απομενουν) ===',
+      deadStock.length > 0
+        ? deadStock.map(v => v.product + ': ' + v.qty + ' τεμ, κεφάλαιο ' + (v.qty*(v.cost||0)).toFixed(0) + ' EUR').join(' | ')
+        : 'Κανένα',
+      '',
+      '=== TOP 15 ΠΡΟΙΟΝΤΑ (αξία stock) ===',
+      ...analytics.topByStockValue.slice(0,15).map(p =>
+        p.product + ': ' + p.totalQty + ' τεμ | ' + p.totalRetail.toFixed(0) + ' EUR | margin ' + p.avgMargin.toFixed(1) + '%'
+      ),
+      '',
+      'Όλα τα δεδομένα είναι live από το Shopify. Δώσε αναλυτική, πρακτική απάντηση με συγκεκριμένα νούμερα.'
     ].join('\n');
 
-    const messages = [{ role: 'user', content: question }];
-    let finalAnswer = '';
-    let rounds = 3;
+    // Single AI call — no function calling needed
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
 
-    while (rounds > 0) {
-      rounds--;
-      // Timeout after 25 seconds
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000);
-      
-      const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        signal: controller.signal,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
-          'HTTP-Referer': 'https://mff-dashboard.onrender.com',
-          'X-Title': 'MFF Intelligence'
-        },
-        body: JSON.stringify({
-          model: 'minimax/minimax-m2.5',
-          messages: [{ role: 'system', content: systemPrompt }, ...messages],
-          tools,
-          tool_choice: 'auto',
-          temperature: 0.3,
-          max_tokens: 2000
-        })
-      });
+    const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
+        'HTTP-Referer': 'https://mff-dashboard.onrender.com',
+        'X-Title': 'MFF Intelligence'
+      },
+      body: JSON.stringify({
+        model: 'minimax/minimax-m2.5',
+        messages: [
+          { role: 'system', content: context },
+          { role: 'user', content: question }
+        ],
+        temperature: 0.3,
+        max_tokens: 2000
+      })
+    });
 
-      clearTimeout(timeout);
-      const gd = await resp.json();
-      if (gd.error) { finalAnswer = 'Σφάλμα: ' + (gd.error.message||JSON.stringify(gd.error)); break; }
+    clearTimeout(timeout);
+    const gd = await resp.json();
 
-      const choice = gd.choices?.[0];
-      const msg = choice?.message;
-      console.log('AI finish_reason:', choice?.finish_reason, 'tool_calls:', msg?.tool_calls?.length || 0);
-
-      if (msg?.tool_calls && msg.tool_calls.length > 0) {
-        messages.push({ role: 'assistant', content: msg.content || null, tool_calls: msg.tool_calls });
-        for (const tc of msg.tool_calls) {
-          const args = JSON.parse(tc.function.arguments || '{}');
-          console.log('Calling:', tc.function.name, JSON.stringify(args));
-          const result = await executeFunction(tc.function.name, args);
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) });
-        }
-        continue;
-      }
-
-      finalAnswer = msg?.content || 'Δεν ήρθε απάντηση';
-      break;
+    if (gd.error) {
+      console.log('AI error:', JSON.stringify(gd.error));
+      return res.json({ answer: 'Σφάλμα AI: ' + (gd.error.message || JSON.stringify(gd.error)) });
     }
 
-    res.json({ answer: finalAnswer });
+    const answer = gd.choices?.[0]?.message?.content || 'Δεν ήρθε απάντηση';
+    console.log('AI answered, tokens:', gd.usage?.total_tokens);
+    res.json({ answer });
+
   } catch(e) {
     console.log('AI error:', e.message);
     if (e.name === 'AbortError') {
-      res.json({ answer: 'Η απάντηση άργησε πολύ. Δοκίμασε πιο σύντομη ερώτηση ή ρώτα ξανά.' });
+      res.json({ answer: 'Η απάντηση άργησε. Δοκίμασε ξανά.' });
     } else {
       res.status(500).json({ error: e.message });
     }
   }
 });
+
+;
 
 ;
 
