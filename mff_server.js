@@ -7,7 +7,7 @@ app.use(express.static(__dirname));
 const SHOPIFY_STORE  = process.env.SHOPIFY_STORE;
 const CLIENT_ID      = process.env.SHOPIFY_CLIENT_ID;
 const CLIENT_SECRET  = process.env.SHOPIFY_CLIENT_SECRET;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+// OpenRouter replaces Gemini
 const PORT           = 3000;
 
 let cachedToken = null, tokenExpiry = 0;
@@ -174,7 +174,7 @@ app.post('/api/discount', async (req, res) => {
 
 app.post('/api/ai', async (req, res) => {
   try {
-    if (!GEMINI_API_KEY) return res.status(400).json({ error: 'GEMINI_API_KEY δεν έχει οριστεί' });
+    if (!process.env.OPENROUTER_API_KEY) return res.status(400).json({ error: 'GEMINI_API_KEY δεν έχει οριστεί' });
     const { question } = req.body;
     const data = await getData();
     const { analytics } = data;
@@ -204,19 +204,29 @@ app.post('/api/ai', async (req, res) => {
       'Ερώτηση: ' + question
     ].join('\n');
 
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_API_KEY,
-      {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: context }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 1500 }
-        })
-      }
-    );
-    const gd = await geminiRes.json();
-    const answer = gd.candidates?.[0]?.content?.parts?.[0]?.text || JSON.stringify(gd);
+    // OpenRouter API — αλλαξε το model εδω αν θες:
+    // 'google/gemini-2.0-flash-exp:free'  → Gemini 2.0 Flash (δωρεαν)
+    // 'meta-llama/llama-3.3-70b-instruct' → Llama 3.3 70B
+    // 'anthropic/claude-3.5-haiku'        → Claude 3.5 Haiku (πιο έξυπνο)
+    const MODEL = 'google/gemini-2.0-flash-exp:free';
+
+    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
+        'HTTP-Referer': 'https://mff-dashboard.onrender.com',
+        'X-Title': 'MFF Intelligence Dashboard'
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        messages: [{ role: 'user', content: context }],
+        temperature: 0.7,
+        max_tokens: 1500
+      })
+    });
+    const gd = await orRes.json();
+    const answer = gd.choices?.[0]?.message?.content || JSON.stringify(gd);
     res.json({ answer });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
