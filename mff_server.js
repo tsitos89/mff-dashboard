@@ -145,7 +145,7 @@ async function fetchSalesData(token) {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const data = await gql(`
       query {
-        orders(first: 250, query: "created_at:>${thirtyDaysAgo} financial_status:paid", sortKey: CREATED_AT, reverse: true) {
+        orders(first: 250, query: "created_at:>${thirtyDaysAgo} status:any", sortKey: CREATED_AT, reverse: true) {
           nodes {
             id name createdAt totalPriceSet { shopMoney { amount } }
             customer { id numberOfOrders }
@@ -286,7 +286,7 @@ app.post('/api/ai', async (req, res) => {
       if (name === 'get_orders_by_date') {
         const d = await gql(`
           query {
-            orders(first: 100, query: "created_at:>${args.from_date} created_at:<${args.to_date} financial_status:paid", sortKey: CREATED_AT, reverse: true) {
+            orders(first: 100, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any", sortKey: CREATED_AT, reverse: true) {
               nodes {
                 name createdAt
                 totalPriceSet { shopMoney { amount } }
@@ -315,7 +315,7 @@ app.post('/api/ai', async (req, res) => {
       if (name === 'get_product_sales') {
         const d = await gql(`
           query {
-            orders(first: 250, query: "created_at:>${args.from_date} created_at:<${args.to_date} financial_status:paid") {
+            orders(first: 250, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any") {
               nodes {
                 lineItems(first: 20) {
                   nodes { title quantity originalUnitPriceSet { shopMoney { amount } } }
