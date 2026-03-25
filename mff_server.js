@@ -208,7 +208,7 @@ app.post('/api/ai', async (req, res) => {
     // 'google/gemini-2.0-flash-exp:free'  → Gemini 2.0 Flash (δωρεαν)
     // 'meta-llama/llama-3.3-70b-instruct' → Llama 3.3 70B
     // 'anthropic/claude-3.5-haiku'        → Claude 3.5 Haiku (πιο έξυπνο)
-    const MODEL = 'minimax/minimax-m2.5:free';
+    const MODEL = 'minimax/minimax-m2.7';
 
     const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
