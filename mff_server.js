@@ -369,8 +369,13 @@ app.post('/api/ai', async (req, res) => {
 
     while (rounds > 0) {
       rounds--;
+      // Timeout after 25 seconds
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      
       const resp = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
@@ -387,6 +392,7 @@ app.post('/api/ai', async (req, res) => {
         })
       });
 
+      clearTimeout(timeout);
       const gd = await resp.json();
       if (gd.error) { finalAnswer = 'Σφάλμα: ' + (gd.error.message||JSON.stringify(gd.error)); break; }
 
@@ -412,7 +418,11 @@ app.post('/api/ai', async (req, res) => {
     res.json({ answer: finalAnswer });
   } catch(e) {
     console.log('AI error:', e.message);
-    res.status(500).json({ error: e.message });
+    if (e.name === 'AbortError') {
+      res.json({ answer: 'Η απάντηση άργησε πολύ. Δοκίμασε πιο σύντομη ερώτηση ή ρώτα ξανά.' });
+    } else {
+      res.status(500).json({ error: e.message });
+    }
   }
 });
 
