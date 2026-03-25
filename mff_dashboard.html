@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MFF Intelligence</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0a0f;--bg2:#111118;--bg3:#1a1a24;--bg4:#22222f;--border:rgba(255,255,255,0.07);--border2:rgba(255,255,255,0.12);--accent:#c9a96e;--accent2:#7c6fff;--accent3:#ff6b8a;--text:#e8e8f0;--text2:#8888aa;--text3:#555566;--green:#4ade80;--red:#f87171;--yellow:#fbbf24}
@@ -87,6 +88,12 @@ input[type=range]{padding:4px 8px;width:160px;accent-color:var(--accent)}
 .ai-msg.user{background:rgba(124,111,255,0.1);border:1px solid rgba(124,111,255,0.2);text-align:right}
 .ai-msg.ai{background:var(--bg3);border:1px solid var(--border)}
 .ai-msg.thinking{color:var(--text3);font-style:italic;font-family:'DM Mono',monospace;font-size:12px;border:1px solid var(--border);padding:10px 16px}
+.ai-msg.ai h1,.ai-msg.ai h2,.ai-msg.ai h3{font-family:'Playfair Display',serif;color:var(--accent);margin:12px 0 6px}
+.ai-msg.ai strong{color:var(--text);font-weight:600}
+.ai-msg.ai ul,.ai-msg.ai ol{padding-left:20px;margin:8px 0}
+.ai-msg.ai li{margin:4px 0}
+.ai-msg.ai p{margin:8px 0}
+.ai-msg.ai code{background:var(--bg4);padding:2px 6px;border-radius:4px;font-family:'DM Mono',monospace;font-size:12px}
 .loading{display:flex;align-items:center;justify-content:center;height:200px;color:var(--text3);font-family:'DM Mono',monospace;font-size:13px}
 .spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin-right:10px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -258,7 +265,19 @@ async function sendAI(){
   document.getElementById('aiBtn').disabled=false;
 }
 function askQ(el){document.getElementById('aiIn').value=el.textContent;sendAI();}
-function addMsg(text,type){var msgs=document.getElementById('aiMsgs');var div=document.createElement('div');div.className='ai-msg '+type;div.textContent=text;msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;return div;}
+function addMsg(text,type){
+  var msgs=document.getElementById('aiMsgs');
+  var div=document.createElement('div');
+  div.className='ai-msg '+type;
+  if(type==='ai' && typeof marked !== 'undefined'){
+    div.innerHTML=marked.parse(text);
+  } else {
+    div.textContent=text;
+  }
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
 loadData();
 </script>
 </body>

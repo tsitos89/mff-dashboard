@@ -208,8 +208,9 @@ app.post('/api/ai', async (req, res) => {
     // 'google/gemini-2.0-flash-exp:free'  → Gemini 2.0 Flash (δωρεαν)
     // 'meta-llama/llama-3.3-70b-instruct' → Llama 3.3 70B
     // 'anthropic/claude-3.5-haiku'        → Claude 3.5 Haiku (πιο έξυπνο)
-    const MODEL = 'minimax/minimax-m2.7';
+    const MODEL = 'minimax/minimax-m2.5';
 
+    console.log('AI request:', question.substring(0,50), 'model:', MODEL);
     const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -226,7 +227,14 @@ app.post('/api/ai', async (req, res) => {
       })
     });
     const gd = await orRes.json();
-    const answer = gd.choices?.[0]?.message?.content || JSON.stringify(gd);
+    console.log('AI response status:', orRes.status, 'keys:', Object.keys(gd));
+    if (gd.error) console.log('AI error:', JSON.stringify(gd.error));
+    // Παίρνε μόνο το τελικό κείμενο, όχι το reasoning
+    const choice = gd.choices?.[0];
+    const answer = choice?.message?.content || 
+                   choice?.message?.reasoning ||
+                   gd.error?.message ||
+                   'Δεν ήρθε απάντηση';
     res.json({ answer });
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
