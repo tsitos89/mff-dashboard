@@ -140,54 +140,62 @@ function computeAnalytics(variants) {
 
 let dataCache = null, cacheTime = 0;
 
-async function fetchSalesData(token) {
+async function fetchSalesData() {
   try {
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const data = await gql(`
-      query {
-        orders(first: 250, query: "created_at:>${thirtyDaysAgo} status:any", sortKey: CREATED_AT, reverse: true) {
-          nodes {
-            id name createdAt totalPriceSet { shopMoney { amount } }
-            customer { id numberOfOrders }
-            lineItems(first: 50) {
-              nodes { title quantity variant { sku product { title productType tags } } }
+    
+    // Paginate through ALL orders
+    let allOrders = [];
+    let cursor = null;
+    let hasNext = true;
+    
+    while (hasNext) {
+      const data = await gql(`
+        query ($cursor: String) {
+          orders(first: 250, after: $cursor, query: "created_at:>${thirtyDaysAgo} status:any", sortKey: CREATED_AT, reverse: true) {
+            pageInfo { hasNextPage endCursor }
+            nodes {
+              id name createdAt totalPriceSet { shopMoney { amount } }
+              customer { id numberOfOrders }
+              lineItems(first: 20) {
+                nodes { title quantity variant { sku product { title productType } } }
+              }
             }
           }
         }
-      }
-    `);
+      `, { cursor });
 
-    const orders = data.data?.orders?.nodes || [];
-    const totalRevenue30 = orders.reduce((s, o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount || 0), 0);
-    const orderCount30 = orders.length;
+      const nodes = data.data?.orders?.nodes || [];
+      allOrders = allOrders.concat(nodes);
+      hasNext = data.data?.orders?.pageInfo?.hasNextPage;
+      cursor = data.data?.orders?.pageInfo?.endCursor;
+      console.log('Sales page fetched:', nodes.length, 'orders, total so far:', allOrders.length);
+    }
+
+    const totalRevenue30 = allOrders.reduce((s, o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount || 0), 0);
+    const orderCount30 = allOrders.length;
     const avgOrderValue30 = orderCount30 > 0 ? totalRevenue30 / orderCount30 : 0;
 
-    // Customers
-    const customerIds = new Set();
     let newCustomers30 = 0, returningCustomers30 = 0;
-    orders.forEach(o => {
+    allOrders.forEach(o => {
       if (o.customer) {
-        customerIds.add(o.customer.id);
         if (o.customer.numberOfOrders <= 1) newCustomers30++;
         else returningCustomers30++;
       }
     });
 
-    // Top selling products
     const productSales = {};
-    orders.forEach(o => {
+    allOrders.forEach(o => {
       (o.lineItems?.nodes || []).forEach(li => {
         const title = li.variant?.product?.title || li.title;
-        if (!productSales[title]) productSales[title] = { title, qty: 0, revenue: 0 };
+        if (!productSales[title]) productSales[title] = { title, qty: 0 };
         productSales[title].qty += li.quantity;
       });
     });
 
-    const topSelling = Object.values(productSales)
-      .sort((a, b) => b.qty - a.qty)
-      .slice(0, 10);
+    const topSelling = Object.values(productSales).sort((a,b) => b.qty - a.qty).slice(0, 10);
 
-    console.log('Sales fetched:', orderCount30, 'orders,', totalRevenue30.toFixed(0), 'EUR');
+    console.log('Sales total:', orderCount30, 'orders,', totalRevenue30.toFixed(0), 'EUR');
     return { totalRevenue30, orderCount30, avgOrderValue30, newCustomers30, returningCustomers30, topSelling };
   } catch(e) {
     console.log('Sales fetch error:', e.message);
@@ -284,19 +292,28 @@ app.post('/api/ai', async (req, res) => {
 
     async function executeFunction(name, args) {
       if (name === 'get_orders_by_date') {
-        const d = await gql(`
-          query {
-            orders(first: 100, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any", sortKey: CREATED_AT, reverse: true) {
-              nodes {
-                name createdAt
-                totalPriceSet { shopMoney { amount } }
-                customer { firstName lastName numberOfOrders }
-                lineItems(first: 10) { nodes { title quantity } }
+        // Paginate all orders for date range
+        let allOrders = [], cur = null, hn = true;
+        while (hn) {
+          const cs = cur ? `, after: "${cur}"` : '';
+          const d = await gql(`
+            query {
+              orders(first: 250${cs}, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any", sortKey: CREATED_AT, reverse: true) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  name createdAt
+                  totalPriceSet { shopMoney { amount } }
+                  customer { firstName lastName numberOfOrders }
+                  lineItems(first: 10) { nodes { title quantity } }
+                }
               }
             }
-          }
-        `);
-        const orders = d.data?.orders?.nodes || [];
+          `);
+          allOrders = allOrders.concat(d.data?.orders?.nodes || []);
+          hn = d.data?.orders?.pageInfo?.hasNextPage;
+          cur = d.data?.orders?.pageInfo?.endCursor;
+        }
+        const orders = allOrders;
         const total = orders.reduce((s,o) => s + parseFloat(o.totalPriceSet?.shopMoney?.amount||0), 0);
         return {
           order_count: orders.length,
@@ -313,19 +330,28 @@ app.post('/api/ai', async (req, res) => {
       }
 
       if (name === 'get_product_sales') {
-        const d = await gql(`
-          query {
-            orders(first: 250, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any") {
-              nodes {
-                lineItems(first: 20) {
-                  nodes { title quantity originalUnitPriceSet { shopMoney { amount } } }
+        // Paginate all orders
+        let allSaleOrders = [], scur = null, shn = true;
+        while (shn) {
+          const scs = scur ? `, after: "${scur}"` : '';
+          const d = await gql(`
+            query {
+              orders(first: 250${scs}, query: "created_at:>${args.from_date} created_at:<${args.to_date} status:any") {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                  lineItems(first: 20) {
+                    nodes { title quantity originalUnitPriceSet { shopMoney { amount } } }
+                  }
                 }
               }
             }
-          }
-        `);
+          `);
+          allSaleOrders = allSaleOrders.concat(d.data?.orders?.nodes || []);
+          shn = d.data?.orders?.pageInfo?.hasNextPage;
+          scur = d.data?.orders?.pageInfo?.endCursor;
+        }
         const pm = {};
-        (d.data?.orders?.nodes||[]).forEach(o => {
+        allSaleOrders.forEach(o => {
           (o.lineItems?.nodes||[]).forEach(li => {
             if (!pm[li.title]) pm[li.title] = { title: li.title, qty: 0, revenue: 0 };
             pm[li.title].qty += li.quantity;
@@ -358,10 +384,31 @@ app.post('/api/ai', async (req, res) => {
     const systemPrompt = [
       'Είσαι σύμβουλος για το eshop MYFASHIONFRUIT. Απαντάς ΠΑΝΤΑ στα ελληνικά με markdown.',
       'Σήμερα: ' + today.toISOString().split('T')[0] + ' (UTC+2). Χθες: ' + yesterday.toISOString().split('T')[0],
-      'Stock: ' + analytics.total + ' variants, αξία πώλησης ' + analytics.totalStockRetail.toFixed(0) + ' EUR, μέσο margin ' + analytics.avgMargin.toFixed(1) + '%',
-      'Πωλήσεις 30 ημερών: ' + (sales.orderCount30||0) + ' παραγγελίες, ' + (sales.totalRevenue30||0).toFixed(0) + ' EUR, μέσο καλάθι ' + (sales.avgOrderValue30||0).toFixed(0) + ' EUR',
-      'Για αναλυτικά δεδομένα (ημερήσια, εβδομαδιαία, ανά προϊόν) χρησιμοποίησε τα functions.'
-    ].join(' | ');
+      '',
+      '=== ΤΡΕΧΟΝ STOCK (ΟΛΟΚΛΗΡΩΜΕΝΑ ΔΕΔΟΜΕΝΑ) ===',
+      'Σύνολο variants: ' + analytics.total + ' | Με cost: ' + analytics.withCost + ' (' + analytics.coveragePct + '%)',
+      'Συνολική αξία stock (τιμή πώλησης): ' + analytics.totalStockRetail.toFixed(0) + ' EUR',
+      'Συνολικό κόστος stock: ' + analytics.totalStockCost.toFixed(0) + ' EUR',
+      'Δυνητικό κέρδος (αξία - κόστος): ' + (analytics.totalStockRetail - analytics.totalStockCost).toFixed(0) + ' EUR',
+      'Μέσο margin: ' + analytics.avgMargin.toFixed(1) + '%',
+      '',
+      '=== ΑΝΑΛΥΣΗ ΑΝΑ ΚΑΤΗΓΟΡΙΑ ===',
+      ...analytics.categories.map(c =>
+        c.name + ': ' + c.stockQty + ' τεμ | αξία πώλησης ' + c.stockRetail.toFixed(0) + ' EUR | κόστος ' + c.stockCost.toFixed(0) + ' EUR | κέρδος ' + (c.stockRetail - c.stockCost).toFixed(0) + ' EUR | margin ' + c.avgMargin.toFixed(1) + '%'
+      ),
+      '',
+      '=== TOP 10 ΠΡΟΙΟΝΤΑ (αξία stock) ===',
+      ...analytics.topByStockValue.slice(0,10).map(p =>
+        p.product + ': ' + p.totalQty + ' τεμ | ' + p.totalRetail.toFixed(0) + ' EUR | margin ' + p.avgMargin.toFixed(1) + '%'
+      ),
+      '',
+      '=== ΠΩΛΗΣΕΙΣ 30 ΗΜΕΡΩΝ ===',
+      'Παραγγελίες: ' + (sales.orderCount30||0) + ' | Έσοδα: ' + (sales.totalRevenue30||0).toFixed(0) + ' EUR | Μέσο καλάθι: ' + (sales.avgOrderValue30||0).toFixed(0) + ' EUR',
+      'Νέοι πελάτες: ' + (sales.newCustomers30||0) + ' | Επαναλαμβανόμενοι: ' + (sales.returningCustomers30||0),
+      '',
+      'Χρησιμοποίησε τα functions ΜΟΝΟ για ημερήσια/εβδομαδιαία δεδομένα ή συγκεκριμένες παραγγελίες.',
+      'Για ερωτήσεις margin, stock, κέρδους, κατηγοριών — ΟΛΑ τα δεδομένα υπάρχουν ήδη παραπάνω!'
+    ].join('\n');
 
     const messages = [{ role: 'user', content: question }];
     let finalAnswer = '';
